@@ -1,3 +1,6 @@
+## 5.0.1
+* network_image_io: [ExtendedNetworkImageProvider] use bytesLoader to custom bytes loader
+
 ## 5.0.0
 
 * Migrate to 3.29.0

@@ -16,6 +16,7 @@ import 'package:flutter/rendering.dart';
 import 'package:http_client_helper/http_client_helper.dart';
 import 'package:web/web.dart' as web;
 import 'extended_network_image_provider.dart' as extended_image_provider;
+
 // ignore: directives_ordering
 import 'package:flutter/src/painting/image_provider.dart' as image_provider;
 
@@ -90,6 +91,7 @@ class ExtendedNetworkImageProvider
     this.imageCacheName,
     this.cacheMaxAge,
     this.webHtmlElementStrategy = WebHtmlElementStrategy.never,
+    this.bytesLoader,
   });
 
   @override
@@ -137,6 +139,10 @@ class ExtendedNetworkImageProvider
 
   @override
   final WebHtmlElementStrategy webHtmlElementStrategy;
+
+  @override
+  final FutureOr<Uint8List> Function(void Function(ImageChunkEvent chunkEvent))?
+  bytesLoader;
 
   @override
   Future<ExtendedNetworkImageProvider> obtainKey(

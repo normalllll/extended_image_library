@@ -33,6 +33,7 @@ class ExtendedNetworkImageProvider
     this.imageCacheName,
     this.cacheMaxAge,
     this.webHtmlElementStrategy = WebHtmlElementStrategy.never,
+    this.bytesLoader,
   });
 
   /// The name of [ImageCache], you can define custom [ImageCache] to store this provider.
@@ -93,6 +94,10 @@ class ExtendedNetworkImageProvider
 
   @override
   final WebHtmlElementStrategy webHtmlElementStrategy;
+
+  @override
+  final FutureOr<Uint8List> Function(void Function(ImageChunkEvent chunkEvent))?
+  bytesLoader;
 
   @override
   ImageStreamCompleter loadImage(
@@ -188,18 +193,18 @@ class ExtendedNetworkImageProvider
     Uint8List? data;
     // exist, try to find cache image file
     if (_cacheImagesDirectory.existsSync()) {
-      final File cacheFlie = File(join(_cacheImagesDirectory.path, md5Key));
-      if (cacheFlie.existsSync()) {
+      final File cacheFile = File(join(_cacheImagesDirectory.path, md5Key));
+      if (cacheFile.existsSync()) {
         if (key.cacheMaxAge != null) {
           final DateTime now = DateTime.now();
-          final FileStat fs = cacheFlie.statSync();
+          final FileStat fs = cacheFile.statSync();
           if (now.subtract(key.cacheMaxAge!).isAfter(fs.changed)) {
-            cacheFlie.deleteSync(recursive: true);
+            cacheFile.deleteSync(recursive: true);
           } else {
-            data = await cacheFlie.readAsBytes();
+            data = await cacheFile.readAsBytes();
           }
         } else {
-          data = await cacheFlie.readAsBytes();
+          data = await cacheFile.readAsBytes();
         }
       }
     }
@@ -226,31 +231,41 @@ class ExtendedNetworkImageProvider
   ) async {
     try {
       final Uri resolved = Uri.base.resolve(key.url);
-      final HttpClientResponse? response = await _tryGetResponse(resolved);
-      if (response == null || response.statusCode != HttpStatus.ok) {
-        if (response != null) {
-          // The network may be only temporarily unavailable, or the file will be
-          // added on the server later. Avoid having future calls to resolve
-          // fail to check the network again.
-          await response.drain<List<int>>(<int>[]);
+
+      final Uint8List bytes;
+
+      if (bytesLoader != null) {
+        bytes = await bytesLoader!((ImageChunkEvent event) {
+          chunkEvents?.add(event);
+        });
+      } else {
+        final HttpClientResponse? response = await _tryGetResponse(resolved);
+        if (response == null || response.statusCode != HttpStatus.ok) {
+          if (response != null) {
+            // The network may be only temporarily unavailable, or the file will be
+            // added on the server later. Avoid having future calls to resolve
+            // fail to check the network again.
+            await response.drain<List<int>>(<int>[]);
+          }
+          return null;
         }
-        return null;
+
+        bytes = await consolidateHttpClientResponseBytes(
+          response,
+          onBytesReceived:
+              chunkEvents != null
+                  ? (int cumulative, int? total) {
+                    chunkEvents.add(
+                      ImageChunkEvent(
+                        cumulativeBytesLoaded: cumulative,
+                        expectedTotalBytes: total,
+                      ),
+                    );
+                  }
+                  : null,
+        );
       }
 
-      final Uint8List bytes = await consolidateHttpClientResponseBytes(
-        response,
-        onBytesReceived:
-            chunkEvents != null
-                ? (int cumulative, int? total) {
-                  chunkEvents.add(
-                    ImageChunkEvent(
-                      cumulativeBytesLoaded: cumulative,
-                      expectedTotalBytes: total,
-                    ),
-                  );
-                }
-                : null,
-      );
       if (bytes.lengthInBytes == 0) {
         return Future<Uint8List>.error(
           StateError('NetworkImage is an empty file: $resolved'),

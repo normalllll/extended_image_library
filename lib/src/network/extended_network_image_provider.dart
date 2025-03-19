@@ -29,6 +29,8 @@ abstract class ExtendedNetworkImageProvider
     String? imageCacheName,
     Duration? cacheMaxAge,
     WebHtmlElementStrategy webHtmlElementStrategy,
+    FutureOr<Uint8List> Function(void Function(ImageChunkEvent) chunkEvent)?
+    bytesLoader,
   }) = network_image.ExtendedNetworkImageProvider;
 
   /// Time Limit to request image
@@ -75,6 +77,9 @@ abstract class ExtendedNetworkImageProvider
   ///
   /// Has no effect on other platforms, which always fetch bytes.
   WebHtmlElementStrategy get webHtmlElementStrategy;
+
+  FutureOr<Uint8List> Function(void Function(ImageChunkEvent chunkEvent))?
+  get bytesLoader;
 
   ///get network image data from cached
   Future<Uint8List?> getNetworkImageData({
